@@ -1,0 +1,156 @@
+<a routerLink="/pacientes" class="volver">← Pacientes</a>
+
+@if (h(); as h) {
+  <div class="ficha">
+    <h2>{{ h.paciente | nombrePac }}</h2>
+    <div>
+      <b>DNI:</b> {{ h.paciente.dni || '—' }} · <b>Tel:</b> {{ h.paciente.telefono || '—' }} ·
+      <b>Email:</b> {{ h.paciente.email || '—' }}
+    </div>
+    <div>
+      <b>Obra social:</b> {{ h.paciente.obra_social || '—' }} {{ h.paciente.nro_afiliado }} ·
+      <b>Nacimiento:</b> {{ (h.paciente.fecha_nacimiento | date: 'dd/MM/yyyy') || '—' }}
+    </div>
+    @if (h.paciente.notas) { <div><b>Notas:</b> {{ h.paciente.notas }}</div> }
+    <div class="acciones">
+      <button class="ghost small" (click)="modal.set('editar')">Editar datos</button>
+      <button class="ghost small" (click)="modal.set('turno')">+ Turno</button>
+      <button class="small" (click)="abrirConsulta()">+ Consulta</button>
+      <button class="small" (click)="abrirPedido()">+ Pedido de anteojos</button>
+      <span class="spacer"></span>
+      <button class="danger small" (click)="eliminar()">Eliminar paciente</button>
+    </div>
+  </div>
+
+  <h3>📋 Historia clínica</h3>
+  @if (h.consultas.length) {
+    <table>
+      <thead>
+        <tr><th>Fecha</th><th>Motivo</th><th>AV OD / OI</th><th>PIO OD / OI</th><th>Rx OD / OI</th><th>Diagnóstico / Indicaciones</th></tr>
+      </thead>
+      <tbody>
+        @for (c of h.consultas; track c.id) {
+          <tr class="click" (click)="consultaDetalle.set(c)">
+            <td>{{ c.fecha | date: 'dd/MM/yyyy' }}</td>
+            <td>{{ c.motivo }}</td>
+            <td>{{ c.av_od }} / {{ c.av_oi }}</td>
+            <td>{{ c.pio_od }} / {{ c.pio_oi }}</td>
+            <td>{{ c.rx_od }}<br>{{ c.rx_oi }}@if (c.adicion) {<br>Add {{ c.adicion }}}</td>
+            <td>{{ c.diagnostico }}@if (c.indicaciones) {<br><i>{{ c.indicaciones }}</i>}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  } @else {
+    <p class="vacio">Sin consultas registradas.</p>
+  }
+
+  <h3>👓 Anteojos</h3>
+  <app-tabla-pedidos [pedidos]="h.pedidos" [conPaciente]="false" (cambiado)="cargar()" />
+
+  <h3>🗓️ Turnos</h3>
+  @if (h.turnos.length) {
+    <table>
+      <tbody>
+        @for (t of h.turnos; track t.id) {
+          <tr>
+            <td>{{ t.fecha_hora | date: 'dd/MM/yyyy HH:mm' }}</td>
+            <td>{{ t.motivo }}</td>
+            <td [class]="'estado-' + t.estado">{{ t.estado }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  } @else {
+    <p class="vacio">Sin turnos.</p>
+  }
+
+  @if (consultaDetalle(); as c) {
+    <app-modal [titulo]="'Consulta del ' + (c.fecha | date: 'dd/MM/yyyy HH:mm')" (cerrar)="consultaDetalle.set(null)">
+      <dl class="detalle">
+        <dt>Paciente</dt><dd>{{ h.paciente | nombrePac }}</dd>
+        <dt>Motivo</dt><dd>{{ c.motivo || '—' }}</dd>
+      </dl>
+      <table class="tabla-ojos">
+        <thead><tr><th></th><th>AV</th><th>PIO (mmHg)</th><th>Rx</th></tr></thead>
+        <tbody>
+          <tr><th>OD</th><td>{{ c.av_od || '—' }}</td><td>{{ c.pio_od ?? '—' }}</td><td>{{ c.rx_od || '—' }}</td></tr>
+          <tr><th>OI</th><td>{{ c.av_oi || '—' }}</td><td>{{ c.pio_oi ?? '—' }}</td><td>{{ c.rx_oi || '—' }}</td></tr>
+        </tbody>
+      </table>
+      <dl class="detalle">
+        <dt>Adición</dt><dd>{{ c.adicion || '—' }}</dd>
+        <dt>Diagnóstico</dt><dd class="notas">{{ c.diagnostico || '—' }}</dd>
+        <dt>Indicaciones</dt><dd class="notas">{{ c.indicaciones || '—' }}</dd>
+        <dt>Anteojos con esta receta</dt>
+        <dd>
+          @for (p of pedidosDeConsulta(c.id); track p.id) {
+            <div>{{ p.fecha_pedido | date: 'dd/MM/yyyy' }} — {{ p.tipo }} <span [class]="'estado-' + p.estado">({{ p.estado }})</span></div>
+          } @empty { — }
+        </dd>
+      </dl>
+    </app-modal>
+  }
+
+  @switch (modal()) {
+    @case ('editar') {
+      <app-form-paciente [paciente]="h.paciente" (cerrar)="modal.set(null)" (guardado)="cerrarYRecargar()" />
+    }
+    @case ('turno') {
+      <app-form-turno [paciente]="h.paciente" (cerrar)="modal.set(null)" (guardado)="cerrarYRecargar()" />
+    }
+    @case ('consulta') {
+      <app-modal [titulo]="'Nueva consulta — ' + (h.paciente | nombrePac)" (cerrar)="modal.set(null)">
+        <form (ngSubmit)="guardarConsulta()">
+          <div class="grid2">
+            <label>Fecha y hora <input type="datetime-local" name="fecha" [(ngModel)]="consulta.fecha"></label>
+            <label>Motivo <input name="motivo" [(ngModel)]="consulta.motivo" placeholder="Control anual, visión borrosa…"></label>
+          </div>
+          <div class="grid3">
+            <label>AV OD <input name="av_od" [(ngModel)]="consulta.av_od" placeholder="10/10"></label>
+            <label>PIO OD (mmHg) <input name="pio_od" type="number" step="0.1" [(ngModel)]="consulta.pio_od"></label>
+            <label>Rx OD <input name="rx_od" [(ngModel)]="consulta.rx_od" placeholder="-1.25 -0.50 x 180"></label>
+            <label>AV OI <input name="av_oi" [(ngModel)]="consulta.av_oi" placeholder="10/10"></label>
+            <label>PIO OI (mmHg) <input name="pio_oi" type="number" step="0.1" [(ngModel)]="consulta.pio_oi"></label>
+            <label>Rx OI <input name="rx_oi" [(ngModel)]="consulta.rx_oi" placeholder="-1.00"></label>
+          </div>
+          <label>Adición <input name="adicion" [(ngModel)]="consulta.adicion" placeholder="+2.00"></label>
+          <label>Diagnóstico <textarea name="diagnostico" [(ngModel)]="consulta.diagnostico"></textarea></label>
+          <label>Indicaciones <textarea name="indicaciones" [(ngModel)]="consulta.indicaciones"></textarea></label>
+          <button>Guardar consulta</button>
+        </form>
+      </app-modal>
+    }
+    @case ('pedido') {
+      <app-modal [titulo]="'Pedido de anteojos — ' + (h.paciente | nombrePac)" (cerrar)="modal.set(null)">
+        <form (ngSubmit)="guardarPedido()">
+          <div class="grid2">
+            <label>Tipo
+              <select name="tipo" [(ngModel)]="pedido['tipo']">
+                @for (t of tipos; track t) { <option [value]="t">{{ t }}</option> }
+              </select>
+            </label>
+            <label>Receta asociada
+              <select name="consulta_id" [(ngModel)]="pedido['consulta_id']">
+                <option [ngValue]="null">— ninguna —</option>
+                @for (c of h.consultas; track c.id) {
+                  <option [ngValue]="c.id">{{ c.fecha | date: 'dd/MM/yyyy' }} — {{ c.motivo }}</option>
+                }
+              </select>
+            </label>
+          </div>
+          <label>Descripción (armazón, cristales, tratamientos)
+            <textarea name="descripcion" [(ngModel)]="pedido['descripcion']"></textarea>
+          </label>
+          <div class="grid3">
+            <label>Entrega estimada <input type="date" name="fecha_estimada" [(ngModel)]="pedido['fecha_estimada']"></label>
+            <label>Monto total <input type="number" name="monto_total" step="0.01" [(ngModel)]="pedido['monto_total']"></label>
+            <label>Seña <input type="number" name="sena" step="0.01" [(ngModel)]="pedido['sena']"></label>
+          </div>
+          <label>Notas <input name="notas" [(ngModel)]="pedido['notas']"></label>
+          <button>Guardar pedido</button>
+        </form>
+      </app-modal>
+    }
+  }
+}

@@ -1,0 +1,56 @@
+<div class="chat-layout">
+  <aside>
+    <h3>Conversaciones</h3>
+    @for (c of lista(); track c.telefono) {
+      <div class="conv" [class.sel]="c.telefono === actual()" [class.atencion]="c.requiere_atencion" (click)="abrir(c.telefono)">
+        <b>{{ c.paciente || c.telefono }} {{ c.requiere_atencion ? '🙋' : c.estado === 'HUMANO' ? '👤' : '' }}</b>
+        <small>{{ c.telefono }} · {{ c.actualizado_en | date: 'dd/MM HH:mm' }}</small>
+        <small>{{ c.ultimo_mensaje }}</small>
+      </div>
+    } @empty {
+      <p class="vacio">Sin conversaciones todavía. Probá el simulador →</p>
+    }
+  </aside>
+
+  <div class="chat-panel">
+    <div class="chat-head">
+      <b>{{ actual() || 'Elegí una conversación' }}</b>
+      @if (actual()) {
+        <button type="button" class="ghost small" (click)="liberar()">Devolver al bot</button>
+      }
+    </div>
+    <div class="mensajes" #chatBox>
+      @for (m of mensajes(); track m.id) {
+        <div class="msg" [class]="m.direccion">
+          <span [innerHTML]="m.texto | whatsapp"></span>
+          <small>{{ m.creado_en | date: 'dd/MM HH:mm' }}</small>
+        </div>
+      }
+    </div>
+    <form class="chat-input" (ngSubmit)="responder()">
+      <input name="respuesta" [(ngModel)]="respuesta" placeholder="Responder como secretaría…" autocomplete="off" [disabled]="!actual()">
+      <button [disabled]="!actual()">Enviar</button>
+    </form>
+  </div>
+
+  <div class="chat-panel">
+    <div class="chat-head">
+      <b>🧪 Simulador del bot</b>
+      <input name="simTel" [ngModel]="simTel()" (ngModelChange)="simTel.set($event); refrescarSimulador()" title="Teléfono simulado">
+    </div>
+    <div class="mensajes" #simBox>
+      @for (m of simMensajes(); track m.id) {
+        <div class="msg" [class]="m.direccion">
+          <span [innerHTML]="m.texto | whatsapp"></span>
+          <small>{{ m.creado_en | date: 'HH:mm' }}</small>
+        </div>
+      } @empty {
+        <p class="vacio">Escribí "hola" para empezar.</p>
+      }
+    </div>
+    <form class="chat-input" (ngSubmit)="enviarSimulado()">
+      <input name="simTexto" [(ngModel)]="simTexto" placeholder="Escribí como si fueras el paciente…" autocomplete="off">
+      <button>Enviar</button>
+    </form>
+  </div>
+</div>
